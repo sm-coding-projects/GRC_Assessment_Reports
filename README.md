@@ -5,8 +5,8 @@ A compliance assessment platform for GRC analysts. Create custom checklists from
 ## Quick Start
 
 ```bash
-git clone <your-repo-url>
-cd grc-project
+git clone https://github.com/sm-coding-projects/GRC_Assessment_Reports.git
+cd GRC_Assessment_Reports
 ./setup.sh       # installs deps, creates DB, ready to go
 npm run dev
 ```
@@ -94,35 +94,6 @@ src/
 ├── hooks/                # Custom React hooks
 └── types/                # TypeScript type definitions
 ```
-
-## Building with Claude Code
-
-This project includes Claude Code configuration for AI-assisted development.
-
-```bash
-# Start Claude Code in the project directory
-claude
-```
-
-### Key Files
-
-| File | Purpose |
-|------|---------|
-| `CLAUDE.md` | Project config — architecture, design system, schema, coding standards |
-| `.claude/rules/` | Always-active rules: security, coding style, testing, git |
-| `.claude/agents/` | Planner, code reviewer, security reviewer |
-| `.claude/skills/` | GRC frameworks domain knowledge, report generation patterns |
-| `.claude/commands/` | `/plan`, `/tdd`, `/review` workflows |
-| `docs/PROMPT-SEQUENCE.md` | Step-by-step prompts to build each feature |
-| `docs/IMPLEMENTATION-GUIDE.md` | Full setup and development guide |
-
-### Workflow
-
-1. **`/plan [feature]`** — Break the feature into tasks
-2. **Build** — Implement one task at a time
-3. **`/tdd [logic]`** — Use TDD for business logic and calculations
-4. **`/review`** — Code quality + security review
-5. **Repeat**
 
 ## License
 
