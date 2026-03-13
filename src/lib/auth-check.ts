@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
+import { isSupabaseConfigured } from "@/lib/supabase/check";
 
 /**
  * Get the authenticated user ID from the request.
@@ -9,10 +10,7 @@ import { prisma } from "@/lib/db";
  * Shared by API routes that can't use tRPC (e.g. file uploads).
  */
 export async function getAuthenticatedUserId(): Promise<string | null> {
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
+  if (!isSupabaseConfigured()) {
     // Development mode without Supabase — get the first user
     // or return null if no users exist
     const devUser = await prisma.user.findFirst();
@@ -22,8 +20,8 @@ export async function getAuthenticatedUserId(): Promise<string | null> {
   const cookieStore = await cookies();
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         getAll() {

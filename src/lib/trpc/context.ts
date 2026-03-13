@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { isSupabaseConfigured } from "@/lib/supabase/check";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
@@ -14,18 +15,15 @@ export async function createContext(
   // In development without Supabase, allow unauthenticated access.
   // In production, missing auth config means userId stays null —
   // protectedProcedure will reject the request with 401.
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
+  if (!isSupabaseConfigured()) {
     return { prisma, userId: null };
   }
 
   const cookieStore = await cookies();
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         getAll() {

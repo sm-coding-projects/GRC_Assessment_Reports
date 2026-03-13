@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+import { isSupabaseConfigured } from "./check";
 
 const PUBLIC_PATHS = ["/login", "/register", "/api/auth"];
 
@@ -37,10 +38,7 @@ export async function updateSession(
 
   // Fail-closed: reject requests if Supabase is not configured in production.
   // In development, allow unauthenticated access for local testing without Supabase.
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
+  if (!isSupabaseConfigured()) {
     if (process.env.NODE_ENV === "production") {
       return new NextResponse("Authentication service not configured", {
         status: 503,
@@ -50,8 +48,8 @@ export async function updateSession(
   }
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         getAll() {
@@ -72,10 +70,21 @@ export async function updateSession(
     },
   );
 
-  // Refresh the session — this also validates the token
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Refresh the session — this also validates the token.
+  // Wrap in try/catch so a misconfigured or unreachable Supabase instance
+  // doesn't hang every request for 25+ seconds.
+  let user = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch {
+    // Supabase unreachable — treat as unauthenticated.
+    // In dev this lets the app keep working; in prod the route
+    // protection below will redirect to login.
+    if (process.env.NODE_ENV !== "production") {
+      return supabaseResponse;
+    }
+  }
 
   const { pathname } = request.nextUrl;
 
