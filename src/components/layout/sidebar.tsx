@@ -69,7 +69,9 @@ function Sidebar(): React.ReactNode {
 
   async function handleSignOut(): Promise<void> {
     const supabase = createClient();
-    await supabase.auth.signOut();
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
     router.push("/login");
     router.refresh();
   }

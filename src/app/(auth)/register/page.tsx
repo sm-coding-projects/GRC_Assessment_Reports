@@ -34,6 +34,10 @@ export default function RegisterPage() {
 
     try {
       const supabase = createClient();
+      if (!supabase) {
+        setError("Authentication is not configured. Set Supabase environment variables to enable registration.");
+        return;
+      }
       const { error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -58,6 +62,10 @@ export default function RegisterPage() {
   async function handleGoogleSignUp(): Promise<void> {
     setError("");
     const supabase = createClient();
+    if (!supabase) {
+      setError("Authentication is not configured. Set Supabase environment variables to enable registration.");
+      return;
+    }
     const redirectTo = `${window.location.origin}/api/auth/callback`;
 
     const { error: authError } = await supabase.auth.signInWithOAuth({

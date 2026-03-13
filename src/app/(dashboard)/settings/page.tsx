@@ -133,6 +133,10 @@ function PasswordSection(): React.ReactNode {
     setSaving(true);
     try {
       const supabase = createClient();
+      if (!supabase) {
+        toast("Authentication is not configured. Cannot change password.", { variant: "danger" });
+        return;
+      }
       const { error } = await supabase.auth.updateUser({
         password: newPassword,
       });
@@ -213,7 +217,9 @@ function DangerZoneSection(): React.ReactNode {
       // Data deleted — sign out and redirect
       try {
         const supabase = createClient();
-        await supabase.auth.signOut();
+        if (supabase) {
+          await supabase.auth.signOut();
+        }
       } catch {
         // Even if sign-out fails, redirect to login
       }

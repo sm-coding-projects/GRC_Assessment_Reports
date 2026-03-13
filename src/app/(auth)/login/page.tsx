@@ -34,6 +34,10 @@ function LoginForm(): React.ReactNode {
 
     try {
       const supabase = createClient();
+      if (!supabase) {
+        setError("Authentication is not configured. Set Supabase environment variables to enable login.");
+        return;
+      }
       const { error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -61,6 +65,10 @@ function LoginForm(): React.ReactNode {
   async function handleGoogleLogin(): Promise<void> {
     setError("");
     const supabase = createClient();
+    if (!supabase) {
+      setError("Authentication is not configured. Set Supabase environment variables to enable login.");
+      return;
+    }
     const redirectTo = `${window.location.origin}/api/auth/callback`;
 
     const { error: authError } = await supabase.auth.signInWithOAuth({
