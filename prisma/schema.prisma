@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client"
+  output   = "./generated/prisma"
+}
+
+// ──────────────────────────────────────────────────────
+// For PRODUCTION with Supabase, change provider to
+// "postgresql" in the datasource block and update
+// prisma.config.ts with the Supabase connection URL.
+// ──────────────────────────────────────────────────────
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id          String       @id @default(cuid())
+  email       String       @unique
+  name        String?
+  avatarUrl   String?
+  createdAt   DateTime     @default(now())
+  templates   Template[]
+  assessments Assessment[]
+}
+
+model Template {
+  id          String            @id @default(cuid())
+  name        String
+  description String?
+  userId      String
+  user        User              @relation(fields: [userId], references: [id])
+  controls    TemplateControl[]
+  assessments Assessment[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
+model TemplateControl {
+  id          String   @id @default(cuid())
+  templateId  String
+  template    Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  framework   String
+  domain      String
+  controlId   String
+  controlName String
+  description String?
+  sortOrder   Int      @default(0)
+
+  @@unique([templateId, framework, controlId])
+}
+
+model Assessment {
+  id         String               @id @default(cuid())
+  name       String
+  templateId String
+  template   Template             @relation(fields: [templateId], references: [id])
+  userId     String
+  user       User                 @relation(fields: [userId], references: [id])
+  status     AssessmentStatus     @default(IN_PROGRESS)
+  responses  AssessmentResponse[]
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+}
+
+model AssessmentResponse {
+  id            String           @id @default(cuid())
+  assessmentId  String
+  assessment    Assessment       @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  framework     String
+  controlId     String
+  status        ComplianceStatus @default(NOT_ASSESSED)
+  notes         String?
+  evidence      String?
+  evidenceFiles EvidenceFile[]
+  updatedAt     DateTime         @updatedAt
+
+  @@unique([assessmentId, framework, controlId])
+}
+
+model EvidenceFile {
+  id           String             @id @default(cuid())
+  responseId   String
+  response     AssessmentResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  fileName     String
+  originalName String
+  mimeType     String
+  sizeBytes    Int
+  storagePath  String
+  createdAt    DateTime           @default(now())
+
+  @@index([responseId])
+}
+
+enum AssessmentStatus {
+  IN_PROGRESS
+  COMPLETED
+  ARCHIVED
+}
+
+enum ComplianceStatus {
+  NOT_ASSESSED
+  COMPLIANT
+  PARTIALLY_COMPLIANT
+  NON_COMPLIANT
+  NOT_APPLICABLE
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  action     String
+  entityType String
+  entityId   String
+  metadata   String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
