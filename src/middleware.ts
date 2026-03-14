@@ -1,16 +1,21 @@
-import { type NextRequest } from "next/server";
-import { updateSession } from "@/lib/supabase/middleware";
+import { type NextRequest, NextResponse } from "next/server";
+import { getIronSession } from "iron-session";
+import type { SessionData } from "@/lib/auth/session";
+
+const PUBLIC_PATHS = ["/login", "/api/auth/login"];
+
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.some((path) => pathname.startsWith(path));
+}
 
 function buildCsp(nonce: string): string {
   return [
     "default-src 'self'",
-    // nonce + strict-dynamic for modern browsers; unsafe-inline fallback for older ones.
-    // Browsers that support nonces ignore 'unsafe-inline' automatically.
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline' 'wasm-unsafe-eval'`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' blob: data: https://*.supabase.co https://lh3.googleusercontent.com",
-    `connect-src 'self' data: https://*.supabase.co ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}`,
+    "img-src 'self' blob: data:",
+    "connect-src 'self'",
     "frame-src 'none'",
     "object-src 'none'",
     "base-uri 'self'",
@@ -19,21 +24,42 @@ function buildCsp(nonce: string): string {
   ].join("; ");
 }
 
-export async function middleware(request: NextRequest) {
-  // Generate a per-request nonce for CSP
+export async function middleware(request: NextRequest): Promise<NextResponse> {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const { pathname } = request.nextUrl;
 
-  // Pass the nonce as a request header so server components can read it
-  const extraHeaders = new Headers();
-  extraHeaders.set("x-nonce", nonce);
+  // Read session from cookie using the response cookies API
+  const response = NextResponse.next({
+    request: {
+      headers: new Headers(request.headers),
+    },
+  });
 
-  const response = await updateSession(request, extraHeaders);
+  const session = await getIronSession<SessionData>(request, response, {
+    password:
+      process.env.SESSION_SECRET ??
+      "this-is-a-dev-secret-change-in-production-32",
+    cookieName: "grc_session",
+  });
 
-  // Don't add CSP to redirects
-  if (response.status >= 300 && response.status < 400) {
-    return response;
+  const isAuthenticated = !!session.userId;
+
+  // Redirect unauthenticated users to login
+  if (!isAuthenticated && !isPublicPath(pathname)) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("next", pathname);
+    return NextResponse.redirect(url);
   }
 
+  // Redirect authenticated users away from login
+  if (isAuthenticated && pathname === "/login") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/";
+    return NextResponse.redirect(url);
+  }
+
+  response.headers.set("x-nonce", nonce);
   response.headers.set("Content-Security-Policy", buildCsp(nonce));
 
   return response;
@@ -41,13 +67,9 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization)
-     * - favicon.ico (favicon)
-     * - static assets (svg, png, jpg, etc.)
-     */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
+// Note: API routes are excluded from middleware.
+// Auth protection for API routes is handled by tRPC's protectedProcedure
+// and individual route handlers checking the session.

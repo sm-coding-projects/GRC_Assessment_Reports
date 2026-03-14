@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { router, protectedProcedure } from "../init";
+import { router, protectedProcedure, writeProcedure } from "../init";
 import { sanitizeText } from "@/lib/sanitize";
 import { recordAudit } from "@/lib/audit";
 
@@ -100,7 +100,7 @@ export const assessmentsRouter = router({
       return response?.evidenceFiles ?? [];
     }),
 
-  create: protectedProcedure
+  create: writeProcedure
     .input(
       z.object({
         name: z.string().min(1, "Assessment name is required").max(255),
@@ -150,7 +150,7 @@ export const assessmentsRouter = router({
       return assessment;
     }),
 
-  updateResponses: protectedProcedure
+  updateResponses: writeProcedure
     .input(
       z.object({
         id: z.string().max(50),
@@ -200,7 +200,7 @@ export const assessmentsRouter = router({
       return { success: true };
     }),
 
-  complete: protectedProcedure
+  complete: writeProcedure
     .input(z.object({ id: z.string().max(50) }))
     .mutation(async ({ ctx, input }) => {
       const assessment = await ctx.prisma.assessment.findFirst({
@@ -225,7 +225,7 @@ export const assessmentsRouter = router({
       return updated;
     }),
 
-  archive: protectedProcedure
+  archive: writeProcedure
     .input(z.object({ id: z.string().max(50) }))
     .mutation(async ({ ctx, input }) => {
       const assessment = await ctx.prisma.assessment.findFirst({
@@ -250,7 +250,7 @@ export const assessmentsRouter = router({
       return updated;
     }),
 
-  delete: protectedProcedure
+  delete: writeProcedure
     .input(z.object({ id: z.string().max(50) }))
     .mutation(async ({ ctx, input }) => {
       const assessment = await ctx.prisma.assessment.findFirst({

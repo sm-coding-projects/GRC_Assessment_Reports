@@ -3,24 +3,27 @@ generator client {
   output   = "./generated/prisma"
 }
 
-// ──────────────────────────────────────────────────────
-// For PRODUCTION with Supabase, change provider to
-// "postgresql" in the datasource block and update
-// prisma.config.ts with the Supabase connection URL.
-// ──────────────────────────────────────────────────────
-
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  READ_WRITE
+  READ_ONLY
 }
 
 model User {
-  id          String       @id @default(cuid())
-  email       String       @unique
-  name        String?
-  avatarUrl   String?
-  createdAt   DateTime     @default(now())
-  templates   Template[]
-  assessments Assessment[]
+  id           String       @id @default(cuid())
+  email        String       @unique
+  name         String?
+  avatarUrl    String?
+  passwordHash String
+  role         UserRole     @default(READ_WRITE)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  templates    Template[]
+  assessments  Assessment[]
 }
 
 model Template {
@@ -69,8 +72,8 @@ model AssessmentResponse {
   framework     String
   controlId     String
   status        ComplianceStatus @default(NOT_ASSESSED)
-  notes         String?
-  evidence      String?
+  notes         String?          @db.Text
+  evidence      String?          @db.Text
   evidenceFiles EvidenceFile[]
   updatedAt     DateTime         @updatedAt
 

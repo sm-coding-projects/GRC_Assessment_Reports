@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { router, protectedProcedure } from "../init";
+import { router, protectedProcedure, writeProcedure } from "../init";
 import { sanitizeText } from "@/lib/sanitize";
 import { recordAudit } from "@/lib/audit";
 
@@ -43,7 +43,7 @@ export const templatesRouter = router({
       return template;
     }),
 
-  create: protectedProcedure
+  create: writeProcedure
     .input(
       z.object({
         name: z.string().min(1, "Template name is required").max(255),
@@ -82,7 +82,7 @@ export const templatesRouter = router({
       return template;
     }),
 
-  update: protectedProcedure
+  update: writeProcedure
     .input(
       z.object({
         id: z.string().max(50),
@@ -151,7 +151,7 @@ export const templatesRouter = router({
       return template;
     }),
 
-  duplicate: protectedProcedure
+  duplicate: writeProcedure
     .input(z.object({ id: z.string().max(50) }))
     .mutation(async ({ ctx, input }) => {
       const template = await ctx.prisma.template.findFirst({
@@ -192,7 +192,7 @@ export const templatesRouter = router({
       return duplicate;
     }),
 
-  delete: protectedProcedure
+  delete: writeProcedure
     .input(z.object({ id: z.string().max(50) }))
     .mutation(async ({ ctx, input }) => {
       const template = await ctx.prisma.template.findFirst({

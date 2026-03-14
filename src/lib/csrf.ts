@@ -31,6 +31,6 @@ export function validateCsrfOrigin(req: Request): boolean {
   }
 
   // No Origin and no Referer — likely a same-origin fetch or non-browser client.
-  // Allow it, since Supabase auth cookies provide the primary CSRF defense.
+  // Allow it, since session cookies (httpOnly + sameSite) provide the primary CSRF defense.
   return true;
 }

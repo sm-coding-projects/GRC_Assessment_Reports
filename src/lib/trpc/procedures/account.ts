@@ -1,52 +1,21 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
 import { router, protectedProcedure } from "../init";
 import { sanitizeText } from "@/lib/sanitize";
 import { recordAudit } from "@/lib/audit";
-
-/**
- * Create a Supabase server client within the tRPC procedure context.
- * Required for server-side auth operations (e.g. updating user metadata).
- */
-async function getSupabaseServer(): Promise<ReturnType<typeof createServerClient> | null> {
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
-    return null;
-  }
-
-  const cookieStore = await cookies();
-
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              cookieStore.set(name, value, options);
-            });
-          } catch {
-            // Read-only context — middleware handles refresh
-          }
-        },
-      },
-    },
-  );
-}
 
 export const accountRouter = router({
   getProfile: protectedProcedure.query(async ({ ctx }) => {
     const user = await ctx.prisma.user.findUnique({
       where: { id: ctx.userId },
-      select: { id: true, email: true, name: true, avatarUrl: true, createdAt: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        avatarUrl: true,
+        role: true,
+        createdAt: true,
+      },
     });
     if (!user) {
       throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
@@ -57,28 +26,19 @@ export const accountRouter = router({
   updateProfile: protectedProcedure
     .input(
       z.object({
-        name: z.string().min(1, "Display name is required").max(100).transform(sanitizeText),
+        name: z
+          .string()
+          .min(1, "Display name is required")
+          .max(100)
+          .transform(sanitizeText),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      // Update Prisma user record
       const user = await ctx.prisma.user.update({
         where: { id: ctx.userId },
         data: { name: input.name },
         select: { id: true, email: true, name: true, avatarUrl: true },
       });
-
-      // Sync display name to Supabase auth metadata
-      const supabase = await getSupabaseServer();
-      if (supabase) {
-        const { error } = await supabase.auth.updateUser({
-          data: { full_name: input.name },
-        });
-        if (error) {
-          // Log but don't fail — Prisma is the primary store
-          console.error("[account] Failed to sync name to Supabase:", error.message);
-        }
-      }
 
       recordAudit({
         userId: ctx.userId,
@@ -92,9 +52,6 @@ export const accountRouter = router({
     }),
 
   deleteAccount: protectedProcedure.mutation(async ({ ctx }) => {
-    // Delete all user data in correct order within a transaction.
-    // Assessments reference templates, so assessments go first.
-    // Cascade rules handle: assessment → responses, template → controls.
     await ctx.prisma.$transaction(async (tx) => {
       await tx.assessmentResponse.deleteMany({
         where: { assessment: { userId: ctx.userId } },

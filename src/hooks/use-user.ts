@@ -1,42 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import type { User, AuthChangeEvent, Session } from "@supabase/supabase-js";
+import { trpc } from "@/lib/trpc/client";
+import type { UserRole } from "@prisma/generated";
+
+interface UserData {
+  id: string;
+  email: string;
+  name: string | null;
+  role: UserRole;
+}
 
 interface UseUserReturn {
-  user: User | null;
+  user: UserData | null;
   loading: boolean;
 }
 
 export function useUser(): UseUserReturn {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading } = trpc.account.getProfile.useQuery(undefined, {
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
 
-  useEffect(() => {
-    const supabase = createClient();
+  const user: UserData | null = data
+    ? { id: data.id, email: data.email, name: data.name, role: data.role }
+    : null;
 
-    // Supabase not configured — skip auth entirely (local dev without auth)
-    if (!supabase) {
-      setLoading(false);
-      return;
-    }
-
-    supabase.auth.getUser().then(({ data }: { data: { user: User | null } }) => {
-      setUser(data.user);
-      setLoading(false);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(
-      (_event: AuthChangeEvent, session: Session | null) => {
-        setUser(session?.user ?? null);
-      },
-    );
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  return { user, loading };
+  return { user, loading: isLoading };
 }

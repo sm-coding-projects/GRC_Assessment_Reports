@@ -1,0 +1,10 @@
+node_modules
+.next
+prisma/generated
+prisma/*.db
+.env
+.env.local
+.env.docker
+uploads/
+.git
+.claude

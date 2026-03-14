@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { trpc } from "@/lib/trpc/client";
-import { createClient } from "@/lib/supabase/client";
 
 function ProfileSection(): React.ReactNode {
   const { toast } = useToast();
@@ -18,13 +17,11 @@ function ProfileSection(): React.ReactNode {
 
   const [displayName, setDisplayName] = useState<string | null>(null);
 
-  // Derive the field value: local edits take priority, then server data
   const nameValue = displayName ?? profile?.name ?? "";
 
   const updateProfile = trpc.account.updateProfile.useMutation({
     onSuccess(data) {
       toast("Profile updated.", { variant: "success" });
-      // Reset local override so field reflects server state
       setDisplayName(null);
       utils.account.getProfile.setData(undefined, (prev) =>
         prev ? { ...prev, name: data.name } : prev,
@@ -87,13 +84,13 @@ function ProfileSection(): React.ReactNode {
           readOnly
         />
         <p className="mt-1 text-xs text-ink-subtle">
-          Email is managed by your authentication provider and cannot be changed here.
+          Email can only be changed by an administrator.
         </p>
       </div>
 
       <div className="pt-1">
         <Button type="submit" disabled={updateProfile.isPending}>
-          {updateProfile.isPending ? "Saving…" : "Save changes"}
+          {updateProfile.isPending ? "Saving..." : "Save changes"}
         </Button>
       </div>
     </form>
@@ -102,45 +99,38 @@ function ProfileSection(): React.ReactNode {
 
 function PasswordSection(): React.ReactNode {
   const { toast } = useToast();
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
-  const [errors, setErrors] = useState<{
-    newPassword?: boolean;
-    confirmPassword?: boolean;
-  }>({});
 
   async function handleChangePassword(e: FormEvent): Promise<void> {
     e.preventDefault();
 
-    const nextErrors: typeof errors = {};
-
     if (newPassword.length < 8) {
-      nextErrors.newPassword = true;
       toast("Password must be at least 8 characters.", { variant: "warning" });
+      return;
     }
     if (newPassword !== confirmPassword) {
-      nextErrors.confirmPassword = true;
       toast("Passwords do not match.", { variant: "warning" });
-    }
-
-    if (Object.keys(nextErrors).length > 0) {
-      setErrors(nextErrors);
       return;
     }
 
-    setErrors({});
     setSaving(true);
     try {
-      const supabase = createClient();
-      if (!supabase) {
-        toast("Authentication is not configured. Cannot change password.", { variant: "danger" });
-        return;
-      }
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
       });
-      if (error) throw error;
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error ?? "Failed to update password.");
+      }
+
+      setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
       toast("Password updated.", { variant: "success" });
@@ -157,6 +147,24 @@ function PasswordSection(): React.ReactNode {
     <form onSubmit={handleChangePassword} className="space-y-5">
       <div className="max-w-sm">
         <label
+          htmlFor="settings-current-password"
+          className="mb-1.5 block text-sm font-medium text-ink"
+        >
+          Current password
+        </label>
+        <Input
+          id="settings-current-password"
+          type="password"
+          value={currentPassword}
+          onChange={(e) => setCurrentPassword(e.target.value)}
+          placeholder="Enter current password"
+          autoComplete="current-password"
+          required
+        />
+      </div>
+
+      <div className="max-w-sm">
+        <label
           htmlFor="settings-new-password"
           className="mb-1.5 block text-sm font-medium text-ink"
         >
@@ -166,13 +174,10 @@ function PasswordSection(): React.ReactNode {
           id="settings-new-password"
           type="password"
           value={newPassword}
-          onChange={(e) => {
-            setNewPassword(e.target.value);
-            setErrors((prev) => ({ ...prev, newPassword: false }));
-          }}
-          error={errors.newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
           placeholder="Minimum 8 characters"
           autoComplete="new-password"
+          required
         />
       </div>
 
@@ -187,19 +192,16 @@ function PasswordSection(): React.ReactNode {
           id="settings-confirm-password"
           type="password"
           value={confirmPassword}
-          onChange={(e) => {
-            setConfirmPassword(e.target.value);
-            setErrors((prev) => ({ ...prev, confirmPassword: false }));
-          }}
-          error={errors.confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
           placeholder="Re-enter your new password"
           autoComplete="new-password"
+          required
         />
       </div>
 
       <div className="pt-1">
         <Button type="submit" disabled={saving}>
-          {saving ? "Updating…" : "Update password"}
+          {saving ? "Updating..." : "Update password"}
         </Button>
       </div>
     </form>
@@ -214,14 +216,10 @@ function DangerZoneSection(): React.ReactNode {
 
   const deleteAccount = trpc.account.deleteAccount.useMutation({
     async onSuccess() {
-      // Data deleted — sign out and redirect
       try {
-        const supabase = createClient();
-        if (supabase) {
-          await supabase.auth.signOut();
-        }
+        await fetch("/api/auth/logout", { method: "POST" });
       } catch {
-        // Even if sign-out fails, redirect to login
+        // Even if logout fails, redirect to login
       }
       router.push("/login");
       router.refresh();
@@ -268,7 +266,7 @@ function DangerZoneSection(): React.ReactNode {
               onClick={handleDeleteAccount}
               disabled={deleteAccount.isPending || confirmText !== "DELETE"}
             >
-              {deleteAccount.isPending ? "Deleting…" : "Confirm deletion"}
+              {deleteAccount.isPending ? "Deleting..." : "Confirm deletion"}
             </Button>
             <Button
               variant="ghost"
@@ -353,7 +351,7 @@ export default function SettingsPage(): React.ReactNode {
         <SettingsSection
           icon={<Lock size={16} />}
           title="Password"
-          description="Change your account password. Only applies to email-based accounts."
+          description="Change your account password."
         >
           <PasswordSection />
         </SettingsSection>

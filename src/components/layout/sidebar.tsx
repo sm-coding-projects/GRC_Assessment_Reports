@@ -12,18 +12,19 @@ import {
   PanelLeftClose,
   PanelLeft,
   User,
+  Users,
   LogOut,
   Menu,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useUser } from "@/hooks/use-user";
-import { createClient } from "@/lib/supabase/client";
 
 interface NavItem {
   label: string;
   href: string;
   icon: React.ElementType;
+  adminOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -32,6 +33,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Assessments", href: "/assessments", icon: ClipboardCheck },
   { label: "Reports", href: "/reports", icon: FileBarChart2 },
   { label: "Settings", href: "/settings", icon: Settings },
+  { label: "Users", href: "/settings/users", icon: Users, adminOnly: true },
 ];
 
 function Sidebar(): React.ReactNode {
@@ -68,19 +70,22 @@ function Sidebar(): React.ReactNode {
   }
 
   async function handleSignOut(): Promise<void> {
-    const supabase = createClient();
-    if (supabase) {
-      await supabase.auth.signOut();
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // Even if logout request fails, redirect to login
     }
     router.push("/login");
     router.refresh();
   }
 
-  const displayName =
-    user?.user_metadata?.full_name ??
-    user?.email?.split("@")[0] ??
-    "User";
+  const displayName = user?.name ?? user?.email?.split("@")[0] ?? "User";
   const displayEmail = user?.email ?? "";
+  const isAdminUser = user?.role === "ADMIN";
+
+  const visibleNavItems = NAV_ITEMS.filter(
+    (item) => !item.adminOnly || isAdminUser,
+  );
 
   const sidebarContent = (
     <>
@@ -117,7 +122,7 @@ function Sidebar(): React.ReactNode {
       {/* Navigation */}
       <nav className="flex-1 px-2 py-3">
         <ul className="flex flex-col gap-0.5">
-          {NAV_ITEMS.map((item) => {
+          {visibleNavItems.map((item) => {
             const active = isActive(item.href);
             const Icon = item.icon;
 
